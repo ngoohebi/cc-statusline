@@ -416,10 +416,25 @@ process.stdin.on('end', () => {
       if (s != null) reset7dInfo = `${DIM}resets${R} ${Math.floor(s/86400)}d${Math.floor((s%86400)/3600)}h`;
     }
 
+    // Effort level priority:
+    //   1. statusline JSON payload `effort.level` — live, mid-session value.
+    //      Set by Claude Code itself and reflects /effort and shift+tab
+    //      changes even when those aren't persisted to settings.json.
+    //   2. settings.json `effortLevel` — the persisted session default.
+    // Reading only from settings.json missed runtime overrides (the in-
+    // product effort cycle does not write back to disk). See Claude Code
+    // statusline docs: "effort.level … Reflects the live session value,
+    // including mid-session /effort changes".
     let effort = '';
-    try {
-      const settings = JSON.parse(fs.readFileSync(path.join(os.homedir(), '.claude', 'settings.json'), 'utf8'));
-      const lvl = settings.effortLevel || 'default';
+    let _effortLvl = i.effort && i.effort.level ? i.effort.level : '';
+    if (!_effortLvl) {
+      try {
+        const settings = JSON.parse(fs.readFileSync(path.join(os.homedir(), '.claude', 'settings.json'), 'utf8'));
+        _effortLvl = settings.effortLevel || '';
+      } catch (e) {}
+    }
+    if (_effortLvl) {
+      const lvl = _effortLvl;
       const ORANGE = '\x1b[38;5;208m';
       const effortColor = {
         low: DIM,
@@ -430,7 +445,7 @@ process.stdin.on('end', () => {
         max: RED,
       }[lvl] || GREEN;
       effort = `${DIM}effort${R} ${effortColor}${lvl}${R}`;
-    } catch (e) {}
+    }
 
     let agentLine = '';
     try {
